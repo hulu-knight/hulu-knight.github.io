@@ -1,8 +1,8 @@
 # Setup
-title: Not Pure Poole
-description: A simple, beautiful, and powerful Jekyll theme for blogs
-url: https://vszhub.github.io
-avatar: /avatar.jpeg
+title: hulu knight的博客
+description: 本博客只是用于
+url: https://hulu-knight.github.io
+avatar: /IMG_7796.JPG
 paginate: 5
 permalink: pretty
 cover_image: /bg.jpeg
@@ -29,14 +29,14 @@ exclude:
 
 # Optimize Jekyl SEO Tag
 twitter:
-  username: vszhub
+  username: hulu knight
   card: summary
 logo: logo.png
 social:
-  name: Songzi Vong
+  name: hulu knight
   links:
-    - https://twitter.com/vszhub
-    - https://github.com/vszhub
+    - https://twitter.com/hulu-knight
+    - https://github.com/hulu-knight
 google_site_verification: xxxxx
 lang: en
 
@@ -54,6 +54,6 @@ sass:
 
 # Specify the author for blog posts
 author:
-  name: Songzi Vong
-  url: https://github.com/vszhub/
-  email: vszhub@gmail.com
+  name: hulu knight
+  url: https://github.com/hulu knight/
+  email: wheezyknight@gmail.com
