@@ -1,7 +1,7 @@
 ---
 layout: post
 title: android notification 消息提醒踩的坑
-tags: kotlin
+tags: kotlin&notification
 author: hulu-knight
 date: 2024-02-05 21:49 +0800
 ---
@@ -48,15 +48,24 @@ Android6.0的悬浮窗展示、下拉菜单展开展示、下拉列表折叠的�
 
 ## 3.android12系统的通知icon和app名称以及时间的展示区分
 
-android12系统以下的消息通知在使用remoteview的时候，会出现自定义的ui全部占满通知的情况，及你是看不到通知icon和app名称以及累计时间的如图：
+**android12系统以下** 的消息通知在使用remoteview的时候，会出现自定义的ui全部占满通知的情况，及你是看不到通知icon和app名称以及累计时间的如图：
 
+悬浮窗：![](https://raw.githubusercontent.com/hulu-knight/Clouding-Pic/master/picture%E5%B1%8F%E5%B9%95%E6%88%AA%E5%9B%BE%202024-02-06%20231444.png)
 
+下拉菜单栏：![](https://raw.githubusercontent.com/hulu-knight/Clouding-Pic/master/picture.png)
 
-android12以上系统则会展示出来并且包含折叠按钮。
+**android12以上** 系统则会展示出来icon，appname，time并且包含折叠按钮。
 
+悬浮窗：
 
+- 折叠形态：![](https://raw.githubusercontent.com/hulu-knight/Clouding-Pic/master/picture%E5%B1%8F%E5%B9%95%E6%88%AA%E5%9B%BE%202024-02-06%20235526.png)
+- 展开形态：![](https://raw.githubusercontent.com/hulu-knight/Clouding-Pic/master/picture%E5%B1%8F%E5%B9%95%E6%88%AA%E5%9B%BE%202024-02-06%20235521.png)
 
-所以我们至少需要两套ui来分别区分android12系统以上和以下的通知样式了。当然如果你的自定义ui比较简单，你依然可以使用同一套ui，但是如果这样，还不如直接使用系统的通知，还不用自己适配。
+下拉菜单一样
+
+**所以**12系统以下无论是否折叠，自定义的layout都没有沾满整个通知界面。
+
+那么我们至少需要两套ui来分别区分android12系统以上和以下的通知样式了。当然如果你的自定义ui比较简单，你依然可以使用同一套ui，但是如果这样，还不如直接使用系统的通知，还不用自己适配。
 
 
 
@@ -81,15 +90,16 @@ android12以上系统则会展示出来并且包含折叠按钮。
 - Android 13：折叠逻辑同12，但是这里有一点不同的是，Android 13的第一条消息是完全展示，第二条折叠后成一个消息列表之后，你点开会发现它多出了一个icon，这个icon是你自己设置的bigicon，你可以选择不设置，这样展示的效果就和android12一样了，当然你也可以重新设计一版ui用来单独适配13系统。
 
   **值得注意的是，Android12并没有办法通过设置bigicon来展示像13 系统一样的图标。**
-
-## 5. Android 5，7不同的顶部菜单栏图标样式
-
-
-
-## 6. 关于如何设置remoteview部分控件的属性
+## 5. 关于如何设置remoteview部分控件的属性
 
 
 
+## 6. Android 5，7不同的顶部菜单栏图标样式
 
+
+
+
+
+## 总结
 
 好了以上就是我踩到的一些坑了，大家如果了解了之后应该就能更容易地完成自定义消息通知央视样式了
