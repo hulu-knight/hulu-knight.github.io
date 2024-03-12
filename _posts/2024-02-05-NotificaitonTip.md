@@ -10,9 +10,7 @@ date: 2024-02-05 21:49 +0800
 最近项目本来以为只是一次简单的通知更新，原来公司的项目一直用的就是系统的通知ui，这次产品要求使用自定义的消息通知样式，我之前虽然有过了解，知道打开用remoteview就可以实现了，只不过可能需要注意的东西有点多，但是真正做起来我才发现不是一般的多，主要还是android系统对自定义通知的限制极大，而且不同的android系统对消息通知的限制还各不相同，那么就让我们一起看看我都踩了哪些坑吧。
 
 那么先来看看我觉得如果你想要进行自定义的消息ui需要注意的点都有哪些：
-- remoteview内支持的view都有哪些
-- notification根据android不同版本有着不同的高度限制
-- 多条消息的折叠逻辑
+[toc]
 
 
 ## 1. remoteview内支持的view
@@ -99,21 +97,280 @@ Android6.0的悬浮窗展示、下拉菜单展开展示、下拉列表折叠的�
 
 你自然可以给自己的remoteview布局设置背景，同时将textview和自己的布局背景适配，但是试想一下，如果你如果一个厂商的背景是黑色的，那你的白色通知背景则会很显眼，和其他通知 “ 格格不入 ”。而有一些手机白色透明的毕竟让你的通知又会显得很不起眼，所以自己设置布局的背景颜色实属下下策。
 
-那么如果不设置自定义布局的背景，我们该如果链接textview和系统的背景呢
+那么如果不设置自定义布局的背景，我们该如果链接textview和系统的背景呢，我们有两种方法进行更改。
 
-很简单, 在你的value的styles.xml加入这个就好，并在你的textview中引用他
+### 方法一
+第一种很简单, 在你的textview中引用```style="@style/TextAppearance.Compat.Notification.Title"```就可以了
 
 ```xml
+<TextView
+    android:id="@+id/notification_title"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:textSize="14sp"
+    android:textStyle="bold"
+    style="@style/TextAppearance.Compat.Notification.Title" />
 
+<TextView
+    android:id="@+id/notification_content"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:textSize="@dimen/sp_12"
+    style="@style/TextAppearance.Compat.Notification.Info" />
+```
+### 方法二
+
+第二种就是自定义方法来判断背景颜色是否是深色，然后根据背景颜色来进行字体颜色的设置
+
+```java
+public class NotificationThemeHelper {
+    private static String TITLE_TEXT = "APP_TITLE_TEXT";
+    private static String CONTENT_TEXT = "APP_CONTENT_TEXT";
+
+    final static String TAG = "NotificationThemeHelper";
+    static SoftReference<NotificationResourceInfo> notificationInfoReference = null;
+    private static final String CHANNEL_NOTIFICATION_ID = "CHANNEL_NOTIFICATION_ID";
+
+    public static NotificationThemeHelper getInstance() {
+        return new NotificationThemeHelper();
+    }
+
+    public NotificationResourceInfo parseNotificationInfo(Context context) {
+        String channelId = createNotificationChannel(context, CHANNEL_NOTIFICATION_ID, CHANNEL_NOTIFICATION_ID);
+        NotificationResourceInfo notificationInfo = null;
+        NotificationContext notificationContext = NotificationContext.from(context);
+        ApplicationInfo applicationInfo = notificationContext.getApplicationInfo();
+        int targetSdkVersion = applicationInfo.targetSdkVersion;
+
+        try {
+            applicationInfo.targetSdkVersion = Math.min(21, targetSdkVersion);
+            //更改版本号，这样可以让builder自行创建contentview
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(notificationContext, channelId);
+            builder.setContentTitle(TITLE_TEXT);
+            builder.setContentText(CONTENT_TEXT);
+            int icon = context.getApplicationInfo().icon;
+            builder.setSmallIcon(icon);
+            Notification notification = builder.build();
+            if (notification.contentView == null) {
+                return null;
+            }
+            int layoutId = notification.contentView.getLayoutId();
+            ViewGroup root = (ViewGroup) LayoutInflater.from(context).inflate(layoutId, null);
+            notificationInfo = getNotificationInfo(notificationContext, root);
+
+        } catch (Exception e) {
+            Log.d(TAG, "更新失败");
+        } finally {
+            applicationInfo.targetSdkVersion = targetSdkVersion;
+        }
+        return notificationInfo;
+    }
+
+    private NotificationResourceInfo getNotificationInfo(Context Context, ViewGroup root) {
+        NotificationResourceInfo resourceInfo = new NotificationResourceInfo();
+
+        root.measure(0,0);
+        root.layout(0,0,root.getMeasuredWidth(),root.getMeasuredHeight());
+
+        Log.i(TAG,"bitmap ok");
+
+        TextView titleTextView = (TextView) root.findViewById(android.R.id.title);
+        if (titleTextView == null) {
+            titleTextView = findView(root, "android:id/title");
+        }
+        if (titleTextView != null) {
+            resourceInfo.titleColor = titleTextView.getCurrentTextColor();
+            resourceInfo.titleResourceName = getResourceIdName(Context, titleTextView.getId());
+            resourceInfo.titleTextSize = titleTextView.getTextSize();
+            resourceInfo.titleLayoutParams = titleTextView.getLayoutParams();
+        }
+
+        TextView contentTextView = findView(root, "android:id/text");
+        if (contentTextView != null) {
+            resourceInfo.descColor = contentTextView.getCurrentTextColor();
+            resourceInfo.descResourceName = getResourceIdName(Context, contentTextView.getId());
+            resourceInfo.descTextSize = contentTextView.getTextSize();
+            resourceInfo.descLayoutParams = contentTextView.getLayoutParams();
+        }
+        return resourceInfo;
+    }
+
+    //遍历布局找到字体最大的两个textView，视其为主副标题
+    private <T extends View> T findView(ViewGroup viewGroupSource, CharSequence locatorTextId) {
+
+        Queue<ViewGroup> queue = new ArrayDeque<>();
+        queue.add(viewGroupSource);
+        while (!queue.isEmpty()) {
+            ViewGroup parentGroup = queue.poll();
+            if (parentGroup == null) {
+                continue;
+            }
+            int childViewCount = parentGroup.getChildCount();
+            for (int num = 0; num < childViewCount; ++num) {
+                View childView = parentGroup.getChildAt(num);
+                String resourceIdName = getResourceIdName(childView.getContext(), childView.getId());
+                Log.d("NotificationManager", "--" + resourceIdName);
+                if (TextUtils.equals(resourceIdName, locatorTextId)) {
+                    Log.d("NotificationManager", "findView");
+                    return (T) childView;
+                }
+                if (childView instanceof ViewGroup) {
+                    queue.add((ViewGroup) childView);
+                }
+
+            }
+        }
+        return null;
+
+    }
+
+    public boolean isDarkNotificationTheme(Context context) {
+        NotificationResourceInfo notificationInfo = getNotificationInfoFromReference();
+        if (notificationInfo == null) {
+            notificationInfo = parseNotificationInfo(context);
+            saveNotificationInfoToReference(notificationInfo);
+        }
+        if (notificationInfo == null) {
+            return isLightColor(Color.TRANSPARENT);
+        }
+        return !isLightColor(notificationInfo.titleColor);
+    }
+
+    private void saveNotificationInfoToReference(NotificationResourceInfo notificationInfo) {
+        if (notificationInfoReference != null) {
+            notificationInfoReference.clear();
+        }
+
+        if (notificationInfo == null) return;
+        notificationInfo.updateTime = SystemClock.elapsedRealtime();
+        notificationInfoReference = new SoftReference<NotificationResourceInfo>(notificationInfo);
+    }
+
+    private boolean isLightColor(int color) {
+        int simpleColor = color | 0xff000000;
+        int baseRed = Color.red(simpleColor);
+        int baseGreen = Color.green(simpleColor);
+        int baseBlue = Color.blue(simpleColor);
+        double value = (baseRed * 0.299 + baseGreen * 0.587 + baseBlue * 0.114);
+        if (value < 192.0) {
+            Log.d("ColorInfo", "亮色");
+            return true;
+        }
+        Log.d("ColorInfo", "深色");
+        return false;
+    }
+
+    public NotificationResourceInfo getNotificationInfoFromReference() {
+        if (notificationInfoReference == null) {
+            return null;
+        }
+        NotificationResourceInfo resourceInfo = notificationInfoReference.get();
+        if (resourceInfo == null) {
+            return null;
+        }
+        long dx = SystemClock.elapsedRealtime() - resourceInfo.updateTime;
+        if (dx > 10 * 1000) {
+            return null;
+        }
+        return resourceInfo;
+    }
+
+    public static String getResourceIdName(Context context, int id) {
+
+        Resources r = context.getResources();
+        StringBuilder out = new StringBuilder();
+        if (id > 0 && resourceHasPackage(id) && r != null) {
+            try {
+                String pkgName;
+                switch (id & 0xff000000) {
+                    case 0x7f000000:
+                        pkgName = "app";
+                        break;
+                    case 0x01000000:
+                        pkgName = "android";
+                        break;
+                    default:
+                        pkgName = r.getResourcePackageName(id);
+                        break;
+                }
+                String typeName = ((Resources) r).getResourceTypeName(id);
+                String entryName = r.getResourceEntryName(id);
+                out.append(pkgName);
+                out.append(":");
+                out.append(typeName);
+                out.append("/");
+                out.append(entryName);
+            } catch (Resources.NotFoundException e) {
+            }
+        }
+        return out.toString();
+    }
+
+    private String createNotificationChannel (Context context,String channelID, String channelNAME){
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            NotificationManager manager = (NotificationManager)context. getSystemService(NOTIFICATION_SERVICE);
+            NotificationChannel channel = new NotificationChannel(channelID, channelNAME, NotificationManager.IMPORTANCE_LOW);
+            manager.createNotificationChannel(channel);
+            return channelID;
+        } else {
+            return null;
+        }
+    }
+    public static boolean resourceHasPackage(int resid) {
+        return (resid >>> 24) != 0;
+    }
+}
 ```
 
-如果你的支持的api小于api21，那么你需要在value的styles.xml文件中加入这个，并在引用他
+创建对应的```NotificationResourceInfo```数据类
 
-```XML
+```java
+class NotificationResourceInfo {
+    String titleResourceName;
+    int titleColor;
+    float titleTextSize;
+    ViewGroup.LayoutParams titleLayoutParams;
+    String descResourceName;
+    int descColor;
+    float descTextSize;
+    ViewGroup.LayoutParams descLayoutParams;
+    long updateTime;
+}
 ```
 
+创建一个```NotificationContext```获取系统的```applicationInfo```
 
+```java
+public class NotificationContext extends ContextWrapper {
+    private Context mContextBase;
+    private ApplicationInfo mApplicationInfo;
 
+    private NotificationContext(Context base) {
+        super(base);
+        this.mContextBase = base;
+    }
+
+    @Override
+    public ApplicationInfo getApplicationInfo() {
+        if (mApplicationInfo != null) return mApplicationInfo;
+        ApplicationInfo applicationInfo = super.getApplicationInfo();
+        mApplicationInfo = new ApplicationInfo(applicationInfo);
+        return mApplicationInfo;
+    }
+
+    public static NotificationContext from(Context context) {
+        return new NotificationContext(context);
+    }
+}
+```
+
+接下来只需要在创建```remoteView```的时候引用即可
+```kotlin
+      int textColor = NotificationThemeHelper.getInstance().isDarkNotificationTheme(context) ? Color.WHITE : Color.BLACK;                     remoteView.setTextColor(R.id.notification_title, textColor);
+      remoteView.setTextColor(R.id.notification_content, textColor);
+```
 
 ## 6. Android 5，7不同的顶部菜单栏图标样式
 **android 5.0**之后通知图标全都修改，小图标不能含有RGB图层，也就是说图片不能带颜色，只能用白色的图片，否则显示的就成白色方格了。如下图
@@ -129,7 +386,17 @@ google也很快对这种“不人道”的做法给出了反馈，在**android7.
 - 你**可以**使用纯色或者并不复杂的颜色的图片（png，jpg等），并且会被正常展示
 - 你**不能**使用颜色丰富的图片，会被渲染成白色的方框，无法正常显示
 
+## 7. 部分手机通知的箭头始终向下，无法朝上
 
+我在测试中发现部分手机，尤其是三星手机，会出现消息出现后，下啦列表的折叠通知和非折叠通知切换时，系统的展开按钮（箭头）始终朝下，这和不同手机厂商对通知的处理有关，当出现这种状况的时候，你需要检查在创建```notification```的时候，有没有设置
+
+```java
+builder.setContentText(message); // builder.setContentInfo(message); 两者设置一个都可以解决
+if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+    builder.setStyle(new NotificationCompat.DecoratedCustomViewStyle());//解决三星手机通知栏展开箭头不向上的问题
+}
+
+```
 
 ## 总结
 
